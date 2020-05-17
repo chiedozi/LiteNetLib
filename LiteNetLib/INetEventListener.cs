@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using LiteNetLib.Utils;
 
 namespace LiteNetLib
 {
@@ -56,7 +57,8 @@ namespace LiteNetLib
         /// New remote peer connected to host, or client connected to remote host
         /// </summary>
         /// <param name="peer">Connected peer object</param>
-        void OnPeerConnected(NetPeer peer);
+        /// <<param name="reader">Additional data sent with the connection request</param>
+        void OnPeerConnected(NetPeer peer, NetDataReader reader);
 
         /// <summary>
         /// Peer disconnected
@@ -114,7 +116,7 @@ namespace LiteNetLib
 
     public class EventBasedNetListener : INetEventListener, IDeliveryEventListener
     {
-        public delegate void OnPeerConnected(NetPeer peer);
+        public delegate void OnPeerConnected(NetPeer peer, NetDataReader reader);
         public delegate void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo);
         public delegate void OnNetworkError(IPEndPoint endPoint, SocketError socketError);
         public delegate void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod);
@@ -172,10 +174,10 @@ namespace LiteNetLib
             DeliveryEvent = null;
         }
 
-        void INetEventListener.OnPeerConnected(NetPeer peer)
+        void INetEventListener.OnPeerConnected(NetPeer peer, NetDataReader reader)
         {
             if (PeerConnectedEvent != null)
-                PeerConnectedEvent(peer);
+                PeerConnectedEvent(peer, reader);
         }
 
         void INetEventListener.OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)

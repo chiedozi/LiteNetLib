@@ -285,7 +285,7 @@ namespace LiteNetLib
         }
 
         //"Accept" incoming constructor
-        internal NetPeer(NetManager netManager, IPEndPoint remoteEndPoint, int id, long connectId, byte connectNum)
+        internal NetPeer(NetManager netManager, IPEndPoint remoteEndPoint, int id, long connectId, byte connectNum, byte[] acceptData)
             : this(netManager, remoteEndPoint, id)
         {
             _connectTime = connectId;
@@ -293,7 +293,8 @@ namespace LiteNetLib
             ConnectionNum = connectNum;
 
             //Make initial packet
-            _connectAcceptPacket = NetConnectAcceptPacket.Make(_connectTime, connectNum, false);
+            _connectAcceptPacket = NetConnectAcceptPacket.Make(_connectTime, connectNum, false, acceptData);
+            
             //Send
             NetManager.SendRaw(_connectAcceptPacket, EndPoint);
 

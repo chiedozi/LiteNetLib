@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using LiteNetLib.Layers;
 using LiteNetLib.Utils;
@@ -70,6 +71,7 @@ namespace LiteNetLib
         public SocketError ErrorCode;
         public DisconnectReason DisconnectReason;
         public ConnectionRequest ConnectionRequest;
+        public NetDataReader AcceptDataReader;
         public DeliveryMethod DeliveryMethod;
         public readonly NetPacketReader DataReader;
 
@@ -526,6 +528,7 @@ namespace LiteNetLib
             int latency = 0,
             DisconnectReason disconnectReason = DisconnectReason.ConnectionFailed,
             ConnectionRequest connectionRequest = null,
+            NetDataReader acceptDataReader = null,
             DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable,
             NetPacket readerSource = null,
             object userData = null)
@@ -550,6 +553,7 @@ namespace LiteNetLib
             evt.ErrorCode = errorCode;
             evt.DisconnectReason = disconnectReason;
             evt.ConnectionRequest = connectionRequest;
+            evt.AcceptDataReader = acceptDataReader;
             evt.DeliveryMethod = deliveryMethod;
             evt.UserData = userData;
 
@@ -571,7 +575,7 @@ namespace LiteNetLib
             switch (evt.Type)
             {
                 case NetEvent.EType.Connect:
-                    _netEventListener.OnPeerConnected(evt.Peer);
+                    _netEventListener.OnPeerConnected(evt.Peer, evt.AcceptDataReader);
                     break;
                 case NetEvent.EType.Disconnect:
                     var info = new DisconnectInfo
@@ -742,7 +746,11 @@ namespace LiteNetLib
             }
         }
 
-        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] rejectData, int start, int length)
+        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] rejectData, int start, int length) {
+            return OnConnectionSolved(request, null, null, rejectData, start, length);
+        }
+        
+        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] acceptData, string networkId, byte[] rejectData, int start, int length)
         {
             NetPeer netPeer = null;
 
@@ -779,10 +787,13 @@ namespace LiteNetLib
                 }
                 else //Accept
                 {
-                    netPeer = new NetPeer(this, request.RemoteEndPoint, GetNextPeerId(), request.ConnectionTime, request.ConnectionNumber);
+                    netPeer = new NetPeer(this, request.RemoteEndPoint, GetNextPeerId(), request.ConnectionTime, request.ConnectionNumber, acceptData);
                     AddPeer(netPeer);
                     _peersLock.ExitUpgradeableReadLock();
-                    CreateEvent(NetEvent.EType.Connect, netPeer);
+
+                    var writer = NetDataWriter.FromString(networkId);
+                    NetDataReader connectData = new NetDataReader(writer.Data);
+                    CreateEvent(NetEvent.EType.Connect, netPeer, acceptDataReader: connectData);
                     NetDebug.Write(NetLogLevel.Trace, "[NM] Received peer connection Id: {0}, EP: {1}",
                         netPeer.ConnectTime, netPeer.EndPoint);
                 }
@@ -1007,7 +1018,7 @@ namespace LiteNetLib
                 case PacketProperty.ConnectAccept:
                     var connAccept = NetConnectAcceptPacket.FromData(packet);
                     if (connAccept != null && peerFound && netPeer.ProcessConnectAccept(connAccept))
-                        CreateEvent(NetEvent.EType.Connect, netPeer);
+                        CreateEvent(NetEvent.EType.Connect, netPeer, acceptDataReader: connAccept.Data);
                     break;
                 default:
                     if(peerFound)

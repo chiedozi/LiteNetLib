@@ -205,19 +205,18 @@ namespace LiteNetLib
         public readonly long ConnectionId;
         public readonly byte ConnectionNumber;
         public readonly bool IsReusedPeer;
+        public readonly NetDataReader Data;
 
-        private NetConnectAcceptPacket(long connectionId, byte connectionNumber, bool isReusedPeer)
+        private NetConnectAcceptPacket(long connectionId, byte connectionNumber, bool isReusedPeer, NetDataReader data)
         {
             ConnectionId = connectionId;
             ConnectionNumber = connectionNumber;
             IsReusedPeer = isReusedPeer;
+            Data = data;
         }
 
         public static NetConnectAcceptPacket FromData(NetPacket packet)
         {
-            if (packet.Size > Size)
-                return null;
-
             long connectionId = BitConverter.ToInt64(packet.RawData, 1);
             //check connect num
             byte connectionNumber = packet.RawData[9];
@@ -228,15 +227,30 @@ namespace LiteNetLib
             if (isReused > 1)
                 return null;
 
-            return new NetConnectAcceptPacket(connectionId, connectionNumber, isReused == 1);
+            // Read data and create request
+            var reader = new NetDataReader(null, 0, 0);
+            if (packet.Size > Size)
+                reader.SetSource(packet.RawData, Size, packet.Size);
+            
+            return new NetConnectAcceptPacket(connectionId, connectionNumber, isReused == 1, reader);
         }
 
-        public static NetPacket Make(long connectId, byte connectNum, bool reusedPeer)
-        {
-            var packet = new NetPacket(PacketProperty.ConnectAccept, 0);
+        // CHIEDO EDIT - Add ability to send information with the accept packet
+        public static NetPacket Make(long connectId, byte connectNum, bool reusedPeer, byte[] acceptData = null) {
+            var dataSize = acceptData == null ? 0 : acceptData.Length;
+            
+            // Make initial packet
+            var packet = new NetPacket(PacketProperty.ConnectAccept, dataSize);
+            
+            // Add data
             FastBitConverter.GetBytes(packet.RawData, 1, connectId);
-            packet.RawData[9] = connectNum;
-            packet.RawData[10] = (byte)(reusedPeer ? 1 : 0);
+            FastBitConverter.GetBytes(packet.RawData, 9, connectNum);
+            FastBitConverter.GetBytes(packet.RawData, 10, (byte)(reusedPeer ? 1 : 0));
+
+            if (dataSize > 0) {
+                Buffer.BlockCopy(acceptData, 0, packet.RawData, Size, acceptData.Length);
+            }
+
             return packet;
         }
     }
