@@ -88,12 +88,12 @@ namespace LiteNetLib
         /// <param name="acceptData">Data to pass to connecting client.</param>
         /// <<param name="networkId">The network id passed by the connecting client.</param>
         /// <returns>Connected NetPeer</returns>
-        public NetPeer Accept(byte[] acceptData, string networkId)
+        public NetPeer Accept(byte[] acceptData = null)
         {
             if (!TryActivate())
                 return null;
             Result = ConnectionRequestResult.Accept;
-            return _listener.OnConnectionSolved(this, acceptData, networkId, null, 0, 0);
+            return _listener.OnConnectionSolved(this, acceptData, null, 0, 0);
         }
         
         public void Reject(byte[] rejectData, int start, int length, bool force)

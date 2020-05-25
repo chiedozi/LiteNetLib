@@ -747,10 +747,10 @@ namespace LiteNetLib
         }
 
         internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] rejectData, int start, int length) {
-            return OnConnectionSolved(request, null, null, rejectData, start, length);
+            return OnConnectionSolved(request, null, rejectData, start, length);
         }
         
-        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] acceptData, string networkId, byte[] rejectData, int start, int length)
+        internal NetPeer OnConnectionSolved(ConnectionRequest request, byte[] acceptData, byte[] rejectData, int start, int length)
         {
             NetPeer netPeer = null;
 
@@ -791,9 +791,9 @@ namespace LiteNetLib
                     AddPeer(netPeer);
                     _peersLock.ExitUpgradeableReadLock();
 
-                    var writer = NetDataWriter.FromString(networkId);
-                    NetDataReader connectData = new NetDataReader(writer.Data);
-                    CreateEvent(NetEvent.EType.Connect, netPeer, acceptDataReader: connectData);
+                    // Send event to local client that peer connected
+                    request.Data.Reset();
+                    CreateEvent(NetEvent.EType.Connect, netPeer, acceptDataReader: request.Data);
                     NetDebug.Write(NetLogLevel.Trace, "[NM] Received peer connection Id: {0}, EP: {1}",
                         netPeer.ConnectTime, netPeer.EndPoint);
                 }

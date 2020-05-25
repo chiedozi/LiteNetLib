@@ -235,9 +235,8 @@ namespace LiteNetLib
             return new NetConnectAcceptPacket(connectionId, connectionNumber, isReused == 1, reader);
         }
 
-        // CHIEDO EDIT - Add ability to send information with the accept packet
         public static NetPacket Make(long connectId, byte connectNum, bool reusedPeer, byte[] acceptData = null) {
-            var dataSize = acceptData == null ? 0 : acceptData.Length;
+            var dataSize = acceptData?.Length ?? 0;
             
             // Make initial packet
             var packet = new NetPacket(PacketProperty.ConnectAccept, dataSize);
@@ -247,7 +246,7 @@ namespace LiteNetLib
             FastBitConverter.GetBytes(packet.RawData, 9, connectNum);
             FastBitConverter.GetBytes(packet.RawData, 10, (byte)(reusedPeer ? 1 : 0));
 
-            if (dataSize > 0) {
+            if (acceptData != null && dataSize > 0) {
                 Buffer.BlockCopy(acceptData, 0, packet.RawData, Size, acceptData.Length);
             }
 

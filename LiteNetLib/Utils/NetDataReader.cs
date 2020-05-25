@@ -88,6 +88,10 @@ namespace LiteNetLib.Utils
             _dataSize = maxSize;
         }
 
+        public void Reset() {
+            _position = _offset;
+        }
+
         public NetDataReader()
         {
 
