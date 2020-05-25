@@ -243,8 +243,8 @@ namespace LiteNetLib
             
             // Add data
             FastBitConverter.GetBytes(packet.RawData, 1, connectId);
-            FastBitConverter.GetBytes(packet.RawData, 9, connectNum);
-            FastBitConverter.GetBytes(packet.RawData, 10, (byte)(reusedPeer ? 1 : 0));
+            packet.RawData[9] = connectNum;
+            packet.RawData[10] = (byte)(reusedPeer ? 1 : 0);
 
             if (acceptData != null && dataSize > 0) {
                 Buffer.BlockCopy(acceptData, 0, packet.RawData, Size, acceptData.Length);
