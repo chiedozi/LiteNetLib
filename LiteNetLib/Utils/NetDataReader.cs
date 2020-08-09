@@ -97,6 +97,11 @@ namespace LiteNetLib.Utils
 
         }
 
+        public NetDataReader(NetDataWriter writer)
+        {
+            SetSource(writer);
+        }
+
         public NetDataReader(byte[] source)
         {
             SetSource(source);
