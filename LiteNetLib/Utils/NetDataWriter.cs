@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
+using UnityEngine;
 
 namespace LiteNetLib.Utils
 {
-    public class NetDataWriter
+    public class NetDataWriter : INetDataWriter
     {
         protected byte[] _data;
         protected int _position;
@@ -325,6 +327,51 @@ namespace LiteNetLib.Utils
             for (int i = 0; i < len; i++)
                 Put(value[i], maxLength);
         }
+        
+        public void PutArray<T>(T[] items) where T : INetSerializable, new() {
+            if (items == null) {
+                Put(0);
+                return;
+            }    
+            
+            PutArray(items, items.Length);
+        }
+
+        public void PutArray<T>(T[] items, int count) where T : INetSerializable, new() {
+            if (items == null) {
+                Put(0);
+                return;
+            }    
+            
+            Put(count);
+            for (var i = 0; i < count; i++) {
+                Put(items[i]);
+            }
+        }
+        
+        public void PutList<T>(List<T> list) where T : INetSerializable, new() {
+            if (list == null) {
+                Put(0);
+                return;
+            }
+
+            Put(list.Count);
+            for (var i = 0; i < list.Count; i++) {
+                Put(list[i]);
+            }
+        }
+        
+        public void PutList(List<string> list) {
+            if (list == null) {
+                Put(0);
+                return;
+            }
+
+            Put(list.Count);
+            for (var i = 0; i < list.Count; i++) {
+                Put(list[i]);
+            }
+        }
 
         public void Put(IPEndPoint endPoint)
         {
@@ -377,6 +424,17 @@ namespace LiteNetLib.Utils
         public void Put<T>(T obj) where T : INetSerializable
         {
             obj.Serialize(this);
+        }
+        
+        public void PutVector2(Vector2 vector) {
+            Put(vector.x);
+            Put(vector.y);
+        }
+        
+        public void PutVector3(Vector3 vector) {
+            Put(vector.x);
+            Put(vector.y);
+            Put(vector.z);
         }
     }
 }
