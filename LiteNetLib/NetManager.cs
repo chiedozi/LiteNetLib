@@ -1468,7 +1468,7 @@ namespace LiteNetLib
                 netPeer.Shutdown(null, 0, 0, !sendDisconnectMessages);
 
             //Stop
-            _socket.Close(false);
+            _socket.Close(false, false);
             _logicThread.Join();
             _logicThread = null;
 

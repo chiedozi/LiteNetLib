@@ -451,7 +451,7 @@ namespace LiteNetLib
             }
         }
 
-        public void Close(bool suspend)
+        public void Close(bool suspend, bool joinThreads = true)
         {
             if (!suspend)
             {
@@ -472,10 +472,13 @@ namespace LiteNetLib
             _udpSocketv4 = null;
             _udpSocketv6 = null;
 
-            if (_threadv4 != null && _threadv4 != Thread.CurrentThread)
-                _threadv4.Join();
-            if (_threadv6 != null && _threadv6 != Thread.CurrentThread)
-                _threadv6.Join();
+            if (joinThreads) {
+                if (_threadv4 != null && _threadv4 != Thread.CurrentThread)
+                    _threadv4.Join();
+                if (_threadv6 != null && _threadv6 != Thread.CurrentThread)
+                    _threadv6.Join();
+            }
+
             _threadv4 = null;
             _threadv6 = null;
         }
