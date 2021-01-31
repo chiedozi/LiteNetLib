@@ -43,7 +43,7 @@ namespace LiteNetLib
             }
             else if (Paused)
             {
-                if (!Socket.Bind(BindAddrIPv4, BindAddrIPv6, Port, Reuse, IPv6))
+                if (!Socket.Bind(BindAddrIPv4, BindAddrIPv6, Port, Reuse, IPv6, false))
                 {
                     NetDebug.WriteError("[S] Cannot restore connection \"{0}\",\"{1}\" port {2}", BindAddrIPv4, BindAddrIPv6, Port);
                     Socket.OnErrorRestore();
@@ -53,19 +53,21 @@ namespace LiteNetLib
     }
 #endif
 
-    internal interface INetSocketListener
-    {
-        void OnMessageReceived(byte[] data, int length, SocketError errorCode, IPEndPoint remoteEndPoint);
-    }
-
     internal sealed class NetSocket
     {
         public const int ReceivePollingTime = 500000; //0.5 second
+
         private Socket _udpSocketv4;
         private Socket _udpSocketv6;
         private Thread _threadv4;
         private Thread _threadv6;
-        private readonly INetSocketListener _listener;
+        private byte[] _receiveBufferv4;
+        private byte[] _receiveBufferv6;
+        private IPEndPoint _bufferEndPointv4;
+        private IPEndPoint _bufferEndPointv6;
+
+        private readonly NetManager _listener;
+
         private const int SioUdpConnreset = -1744830452; //SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12
         private static readonly IPAddress MulticastAddressV6 = IPAddress.Parse("ff02::1");
         internal static readonly bool IPv6Support;
@@ -122,7 +124,7 @@ namespace LiteNetLib
 #endif
         }
 
-        public NetSocket(INetSocketListener listener)
+        public NetSocket(NetManager listener)
         {
             _listener = listener;
         }
@@ -135,6 +137,67 @@ namespace LiteNetLib
                 return false;
 #endif
             return IsRunning;
+        }
+
+        private bool ProcessError(SocketException ex, EndPoint bufferEndPoint)
+        {
+            switch (ex.SocketErrorCode)
+            {
+#if UNITY_IOS && !UNITY_EDITOR
+                case SocketError.NotConnected:
+#endif
+                case SocketError.Interrupted:
+                case SocketError.NotSocket:
+                    return true;
+                case SocketError.ConnectionReset:
+                case SocketError.MessageSize:
+                case SocketError.TimedOut:
+                    NetDebug.Write(NetLogLevel.Trace, "[R]Ignored error: {0} - {1}",
+                        (int)ex.SocketErrorCode, ex.ToString());
+                    break;
+                default:
+                    NetDebug.WriteError("[R]Error code: {0} - {1}", (int)ex.SocketErrorCode,
+                        ex.ToString());
+                    _listener.OnMessageReceived(null, 0, ex.SocketErrorCode, (IPEndPoint)bufferEndPoint);
+                    break;
+            }
+            return false;
+        }
+
+        public void ManualReceive()
+        {
+            ManualReceive(_udpSocketv4, _bufferEndPointv4, _receiveBufferv4);
+            if (_udpSocketv6 != null && _udpSocketv6 != _udpSocketv4)
+                ManualReceive(_udpSocketv6, _bufferEndPointv6, _receiveBufferv6);
+        }
+
+        private bool ManualReceive(Socket socket, EndPoint bufferEndPoint, byte[] receiveBuffer)
+        {
+            int result;
+            //Reading data
+            try
+            {
+                int available = socket.Available;
+                if (available == 0)
+                    return false;
+                while (available > 0)
+                {
+                    result = socket.ReceiveFrom(receiveBuffer, 0, receiveBuffer.Length, SocketFlags.None,
+                        ref bufferEndPoint);
+                    NetDebug.Write(NetLogLevel.Trace, "[R]Received data from {0}, result: {1}", bufferEndPoint.ToString(), result);
+                    _listener.OnMessageReceived(receiveBuffer, result, 0, (IPEndPoint)bufferEndPoint);
+                    available -= result;
+                }
+            }
+            catch (SocketException ex)
+            {
+                return ProcessError(ex, bufferEndPoint);
+            }
+            catch (ObjectDisposedException)
+            {
+                return true;
+            }
+            return false;
         }
 
         private void ReceiveLogic(object state)
@@ -157,26 +220,8 @@ namespace LiteNetLib
                 }
                 catch (SocketException ex)
                 {
-                    switch (ex.SocketErrorCode)
-                    {
-#if UNITY_IOS && !UNITY_EDITOR
-                        case SocketError.NotConnected:
-#endif
-                        case SocketError.Interrupted:
-                        case SocketError.NotSocket:
-                            return;
-                        case SocketError.ConnectionReset:
-                        case SocketError.MessageSize:
-                        case SocketError.TimedOut:
-                            NetDebug.Write(NetLogLevel.Trace, "[R]Ignored error: {0} - {1}",
-                                (int)ex.SocketErrorCode, ex.ToString());
-                            break;
-                        default:
-                            NetDebug.WriteError("[R]Error code: {0} - {1}", (int)ex.SocketErrorCode,
-                                ex.ToString());
-                            _listener.OnMessageReceived(null, 0, ex.SocketErrorCode, (IPEndPoint)bufferEndPoint);
-                            break;
-                    }
+                    if (ProcessError(ex, bufferEndPoint))
+                        return;
                     continue;
                 }
                 catch (ObjectDisposedException)
@@ -190,7 +235,7 @@ namespace LiteNetLib
             }
         }
 
-        public bool Bind(IPAddress addressIPv4, IPAddress addressIPv6, int port, bool reuseAddress, IPv6Mode ipv6Mode)
+        public bool Bind(IPAddress addressIPv4, IPAddress addressIPv6, int port, bool reuseAddress, IPv6Mode ipv6Mode, bool manualMode)
         {
             if (IsActive())
                 return false;
@@ -228,12 +273,20 @@ namespace LiteNetLib
                 _udpSocketv6 = _udpSocketv4;
 
             IsRunning = true;
-            _threadv4 = new Thread(ReceiveLogic)
+            if (!manualMode)
             {
-                Name = "SocketThreadv4(" + LocalPort + ")",
-                IsBackground = true
-            };
-            _threadv4.Start(_udpSocketv4);
+                _threadv4 = new Thread(ReceiveLogic)
+                {
+                    Name = "SocketThreadv4(" + LocalPort + ")",
+                    IsBackground = true
+                };
+                _threadv4.Start(_udpSocketv4);
+            }
+            else
+            {
+                _receiveBufferv4 = new byte[NetConstants.MaxPacketSize];
+                _bufferEndPointv4 = new IPEndPoint(IPAddress.Any, 0);
+            }
 
             //Check IPv6 support
             if (!IPv6Support || ipv6Mode != IPv6Mode.SeparateSocket)
@@ -243,12 +296,21 @@ namespace LiteNetLib
             //Use one port for two sockets
             if (BindSocket(_udpSocketv6, new IPEndPoint(addressIPv6, LocalPort), reuseAddress, ipv6Mode))
             {
-                _threadv6 = new Thread(ReceiveLogic)
+                if (manualMode)
                 {
-                    Name = "SocketThreadv6(" + LocalPort + ")",
-                    IsBackground = true
-                };
-                _threadv6.Start(_udpSocketv6);
+                    _receiveBufferv6 = new byte[NetConstants.MaxPacketSize];
+                    _bufferEndPointv6 = new IPEndPoint(IPAddress.IPv6Any, 0);
+                }
+                else
+                {
+                    _threadv6 = new Thread(ReceiveLogic)
+                    {
+                        Name = "SocketThreadv6(" + LocalPort + ")",
+                        IsBackground = true
+                    };
+                    _threadv6.Start(_udpSocketv6);
+                }
+
             }
 
             return true;

@@ -115,7 +115,16 @@ namespace LiteNetLib
         void OnMessageDelivered(NetPeer peer, object userData);
     }
 
-    public class EventBasedNetListener : INetEventListener, IDeliveryEventListener
+    public interface INtpEventListener
+    {
+        /// <summary>
+        /// Ntp response
+        /// </summary>
+        /// <param name="packet"></param>
+        void OnNtpResponse(NtpPacket packet);
+    }
+
+    public class EventBasedNetListener : INetEventListener, IDeliveryEventListener, INtpEventListener
     {
         public delegate void OnPeerConnected(NetPeer peer, NetDataReader reader);
         public delegate void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo);
@@ -125,6 +134,7 @@ namespace LiteNetLib
         public delegate void OnNetworkLatencyUpdate(NetPeer peer, int latency);
         public delegate void OnConnectionRequest(ConnectionRequest request);
         public delegate void OnDeliveryEvent(NetPeer peer, object userData);
+        public delegate void OnNtpResponseEvent(NtpPacket packet);
 
         public event OnPeerConnected PeerConnectedEvent;
         public event OnPeerDisconnected PeerDisconnectedEvent;
@@ -134,6 +144,7 @@ namespace LiteNetLib
         public event OnNetworkLatencyUpdate NetworkLatencyUpdateEvent;
         public event OnConnectionRequest ConnectionRequestEvent;
         public event OnDeliveryEvent DeliveryEvent;
+        public event OnNtpResponseEvent NtpResponseEvent;
 
         public void ClearPeerConnectedEvent()
         {
@@ -173,6 +184,11 @@ namespace LiteNetLib
         public void ClearDeliveryEvent()
         {
             DeliveryEvent = null;
+        }
+
+        public void ClearNtpResponseEvent()
+        {
+            NtpResponseEvent = null;
         }
 
         void INetEventListener.OnPeerConnected(NetPeer peer, NetDataReader reader)
@@ -221,6 +237,12 @@ namespace LiteNetLib
         {
             if (DeliveryEvent != null)
                 DeliveryEvent(peer, userData);
+        }
+
+        void INtpEventListener.OnNtpResponse(NtpPacket packet)
+        {
+            if (NtpResponseEvent != null)
+                NtpResponseEvent(packet);
         }
     }
 }

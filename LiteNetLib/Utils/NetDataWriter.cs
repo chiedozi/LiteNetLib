@@ -45,7 +45,7 @@ namespace LiteNetLib.Utils
                 netDataWriter.Put(bytes);
                 return netDataWriter;
             }
-            return new NetDataWriter(true, 0) {_data = bytes};
+            return new NetDataWriter(true, 0) {_data = bytes, _position = bytes.Length};
         }
 
         /// <summary>
@@ -105,6 +105,18 @@ namespace LiteNetLib.Utils
         public int Length
         {
             get { return _position; }
+        }
+
+        /// <summary>
+        /// Sets position of NetDataWriter to rewrite previous values
+        /// </summary>
+        /// <param name="position">new byte position</param>
+        /// <returns>previous position of data writer</returns>
+        public int SetPosition(int position)
+        {
+            int prevPosition = _position;
+            _position = position;
+            return prevPosition;
         }
 
         public void Put(float value)
